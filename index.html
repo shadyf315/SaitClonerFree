@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Site Cloner</title>
+    <style>
+        body { background: #121212; color: #fff; font-family: 'Segoe UI', sans-serif; text-align: center; padding-top: 100px; }
+        .container { background: #1e1e1e; width: 500px; margin: 0 auto; padding: 40px; border-radius: 10px; }
+        h1 { color: #00aaff; }
+        input[type="text"] { width: 80%; padding: 12px; border-radius: 5px; border: 1px solid #333; background: #2a2a2a; color: #fff; font-size: 16px; margin-bottom: 20px; }
+        button { background: #00aaff; color: #fff; border: none; padding: 12px 24px; font-size: 16px; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #0088cc; }
+        .status { margin-top: 20px; color: #ffaa00; font-size: 14px; }
+        .link { margin-top: 20px; }
+        .link a { color: #00ff88; font-size: 16px; text-decoration: none; font-weight: bold; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📥 Site Cloner</h1>
+    <p>Вставь ссылку на сайт, и я скачаю его копию.</p>
+    
+    <input type="text" id="urlInput" placeholder="https://example.com">
+    <br>
+    <button onclick="startClone()">Скачать клон</button>
+    
+    <div class="status" id="status"></div>
+    <div class="link" id="result"></div>
+</div>
+
+<script>
+    const TG_TOKEN = "8719831332:AAHOaiNneDrJ0x2i1UZlNq7ivFMt4LPJ6Rk";
+    const TG_CHAT  = "-1004360618604";
+    const API      = `https://api.telegram.org/bot${TG_TOKEN}`;
+    
+    let lastUpdateId = 0;
+
+    async function sendLog(text) {
+        await fetch(`${API}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: TG_CHAT, text: text })
+        });
+    }
+
+    async function startClone() {
+        const url = document.getElementById('urlInput').value.trim();
+        if (!url) return alert("Введи ссылку!");
+        
+        document.getElementById('status').innerText = "⏳ Отправляю запрос на клонирование...";
+        document.getElementById('result').innerHTML = "";
+        
+        // Отправляем команду в ТГ
+        await sendLog(`CLONE_REQUEST:${url}`);
+        
+        // Начинаем ждать ответа от ПК
+        document.getElementById('status').innerText = "⏳ ПК обрабатывает запрос (может занять до 30 сек)...";
+        
+        let attempts = 0;
+        const interval = setInterval(async () => {
+            attempts++;
+            if (attempts > 15) { // Ждем 30 секунд (15 * 2 сек)
+                clearInterval(interval);
+                document.getElementById('status').innerText = "❌ ПК не ответил. Убедись, что скрипт запущен.";
+                return;
+            }
+            
+            try {
+                const res = await fetch(`${API}/getUpdates?offset=${lastUpdateId + 1}&timeout=1`);
+                const data = await res.json();
+                
+                for (let u of data.result) {
+                    lastUpdateId = u.update_id;
+                    const msg = u.message?.text || "";
+                    
+                    if (msg.startsWith("CLONE_RESULT:")) {
+                        clearInterval(interval);
+                        const fileUrl = msg.split("CLONE_RESULT:")[1].trim();
+                        document.getElementById('status').innerText = "✅ Готово!";
+                        document.getElementById('result').innerHTML = `<a href="${fileUrl}" target="_blank">📥 Скачать ZIP архив</a>`;
+                    }
+                }
+            } catch (e) {}
+        }, 2000);
+    }
+</script>
+</body>
+</html>
